@@ -1,21 +1,23 @@
 import React from 'react';
-import { Camera, Eye, Gauge, MessageSquareText, Play, Square, Info, Activity } from 'lucide-react';
+import { Camera, Eye, MessageSquareText, Play, Square, Info, ShieldCheck, Loader2 } from 'lucide-react';
 import { AccuracyMeter } from './AccuracyMeter';
-import { FeedbackArea } from './FeedbackArea';
 
 export function DetectorMode({
   videoRef,
+  canvasRef,
   isCameraActive,
   isPracticeActive,
+  isLoadingModel,
   onTogglePractice,
   cameraError,
   detectedLetter,
   accuracyScore,
+  confidenceScore = 0,
   feedbackText
 }) {
   return (
     <div className="detector-view">
-      {/* Left Column - Camera Stream */}
+      {/* Left Column - Camera Stream & Hand Landmark Overlay */}
       <div className="camera-panel">
         <div className="webcam-container">
           <video
@@ -26,19 +28,25 @@ export function DetectorMode({
             style={{ display: isCameraActive ? 'block' : 'none' }}
           />
 
+          <canvas
+            ref={canvasRef}
+            className="webcam-canvas"
+            style={{ display: isCameraActive ? 'block' : 'none' }}
+          />
+
           {!isCameraActive && (
             <div className="webcam-placeholder">
               <div className="camera-icon-wrapper">
                 <Camera size={32} />
               </div>
               <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-                ASL Detector Standby
+                ASL Free Detector Standby
               </h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '360px' }}>
-                Click <strong>Start Detector</strong> to turn on your webcam. Perform any ASL letter sign to get real-time detection & accuracy rating out of 100.
+                Click <strong>Start Detector</strong> to activate your webcam. Perform any ASL letter sign (A–Z) to get real-time detection & pose accuracy rating.
               </p>
               {cameraError && (
-                <div style={{ color: 'var(--accent-rose)', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                <div style={{ color: 'var(--accent-rose)', fontSize: '0.85rem', marginTop: '0.5rem', fontWeight: 600 }}>
                   {cameraError}
                 </div>
               )}
@@ -50,7 +58,7 @@ export function DetectorMode({
               MediaPipe Vision
             </div>
             <div className="overlay-badge">
-              {isCameraActive ? 'Live Detector' : 'Standby'}
+              {isLoadingModel ? 'Initializing AI...' : isCameraActive ? 'Live Recognition' : 'Standby'}
             </div>
           </div>
         </div>
@@ -59,13 +67,19 @@ export function DetectorMode({
           <button
             className="btn-primary"
             onClick={onTogglePractice}
+            disabled={isLoadingModel}
             style={{
               background: isPracticeActive
                 ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-                : undefined
+                : undefined,
+              opacity: isLoadingModel ? 0.7 : 1
             }}
           >
-            {isPracticeActive ? (
+            {isLoadingModel ? (
+              <>
+                <Loader2 size={18} className="spin" /> Loading Model...
+              </>
+            ) : isPracticeActive ? (
               <>
                 <Square size={18} /> Stop Detector
               </>
@@ -80,25 +94,32 @@ export function DetectorMode({
 
       {/* Right Column - Detection Rating & Suggestions */}
       <div className="detector-side-panel">
-        {/* Rating out of 100 */}
+        {/* Pose Quality Rating out of 100 */}
         <div className="card detector-score-card">
           <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-            ACCURACY RATING
+            POSE QUALITY SCORE
           </div>
           <div className="score-display-large">
             <span className="score-number">{accuracyScore || 0}</span>
             <span className="score-denom">/ 100</span>
           </div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Real-time hand pose similarity score
+            Real-time hand pose landmark similarity
           </div>
         </div>
 
         {/* Detected Letter Display */}
         <div className="card">
-          <div className="card-title">
-            <Eye size={18} />
-            <span>Detected ASL Letter</span>
+          <div className="card-title" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Eye size={18} />
+              <span>Detected ASL Letter</span>
+            </div>
+            {detectedLetter && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', background: 'var(--accent-emerald-light)', padding: '0.2rem 0.5rem', borderRadius: '99px', fontWeight: 600 }}>
+                {confidenceScore}% Confident
+              </span>
+            )}
           </div>
 
           <div className="detected-letter-badge">
@@ -107,10 +128,12 @@ export function DetectorMode({
             </div>
             <div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                {detectedLetter ? `Letter ${detectedLetter}` : 'No Hand Detected'}
+                {detectedLetter ? `Letter ${detectedLetter}` : 'Uncertain / No Hand'}
               </div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {isPracticeActive ? 'Awaiting hand sign...' : 'Detector inactive'}
+                {isPracticeActive
+                  ? (detectedLetter ? `Recognition Confidence: ${confidenceScore}%` : 'Position hand in frame...')
+                  : 'Start detector to enable recognition'}
               </div>
             </div>
           </div>
@@ -131,7 +154,7 @@ export function DetectorMode({
             <p className="feedback-text">
               {feedbackText || (
                 isPracticeActive
-                  ? 'Keep your hand within the camera frame with clear lighting. Adjust fingers to improve score.'
+                  ? 'Keep your hand steady within camera frame. Adjust your fingers to improve pose score.'
                   : 'Start the detector to receive personalized pose improvement suggestions.'
               )}
             </p>
