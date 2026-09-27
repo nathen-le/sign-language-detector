@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Eye, MessageSquareText, Play, Square, Info, ShieldCheck, Loader2 } from 'lucide-react';
+import { Camera, Eye, MessageSquareText, Play, Square, Info, Loader2 } from 'lucide-react';
 import { AccuracyMeter } from './AccuracyMeter';
 
 export function DetectorMode({
@@ -92,9 +92,9 @@ export function DetectorMode({
         </div>
       </div>
 
-      {/* Right Column - Detection Rating & Suggestions */}
+      {/* Right Column - Score & Direct Suggestions */}
       <div className="detector-side-panel">
-        {/* Pose Quality Rating out of 100 */}
+        {/* 1. Pose Quality Score Card */}
         <div className="card detector-score-card">
           <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
             POSE QUALITY SCORE
@@ -108,7 +108,26 @@ export function DetectorMode({
           </div>
         </div>
 
-        {/* Detected Letter Display */}
+        {/* 2. Real-Time Improvement Suggestions Card (Positioned directly below Pose Quality Score) */}
+        <div className="card feedback-card-highlight">
+          <div className="card-title">
+            <MessageSquareText size={18} />
+            <span>Suggestions to Improve</span>
+          </div>
+
+          <div className="feedback-box">
+            <Info size={22} color="var(--primary)" style={{ flexShrink: 0 }} />
+            <p className="feedback-text">
+              {feedbackText || (
+                isPracticeActive
+                  ? 'Keep your hand steady within camera frame. Adjust your fingers to improve pose score.'
+                  : 'Start the detector to receive personalized pose improvement suggestions.'
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* 3. Detected Letter Display */}
         <div className="card">
           <div className="card-title" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -139,27 +158,8 @@ export function DetectorMode({
           </div>
         </div>
 
-        {/* Accuracy Gauge Bar */}
+        {/* 4. Accuracy Gauge Bar */}
         <AccuracyMeter accuracyScore={accuracyScore} />
-
-        {/* Real-time Improvement Suggestions */}
-        <div className="card" style={{ flex: 1 }}>
-          <div className="card-title">
-            <MessageSquareText size={18} />
-            <span>Suggestions to Improve</span>
-          </div>
-
-          <div className="feedback-box" style={{ minHeight: '90px' }}>
-            <Info size={22} color="var(--primary)" style={{ flexShrink: 0 }} />
-            <p className="feedback-text">
-              {feedbackText || (
-                isPracticeActive
-                  ? 'Keep your hand steady within camera frame. Adjust your fingers to improve pose score.'
-                  : 'Start the detector to receive personalized pose improvement suggestions.'
-              )}
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );

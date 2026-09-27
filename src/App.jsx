@@ -17,6 +17,20 @@ export function App() {
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const [cameraError, setCameraError] = useState(null);
 
+  // Theme state: default to 'light'
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('signolingo_theme') || 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('signolingo_theme', theme);
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  };
+
   // Recognition & Scoring states
   const [detectedLetter, setDetectedLetter] = useState(null);
   const [accuracyScore, setAccuracyScore] = useState(0); // Pose Quality (0-100)
@@ -269,6 +283,8 @@ export function App() {
         onChangeMode={handleChangeMode}
         isCameraActive={isCameraActive}
         isPracticeActive={isPracticeActive}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
 
       <main className="workspace">
@@ -311,7 +327,7 @@ export function App() {
       </main>
 
       <footer className="footer">
-        SignSense — Browser ASL Learning App — Real-Time Hand Landmark Recognition & Academy
+        SignoLingo — Browser ASL Learning App — Real-Time Hand Landmark Recognition & Academy
       </footer>
     </div>
   );
