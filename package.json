@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "prebuild": "node -e \"const fs=require('fs'); fs.mkdirSync('public/wasm',{recursive:true}); fs.cpSync('node_modules/@mediapipe/tasks-vision/wasm','public/wasm',{recursive:true});\"",
+    "build": "npm run prebuild && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -3,7 +3,8 @@ import { drawSkeleton } from '../utils/handLandmarkUtils';
 
 /**
  * HandTracker manages MediaPipe Tasks Vision HandLandmarker initialization,
- * video frame detection, and 21 landmark canvas skeleton overlay rendering.
+ * local WASM fallback loading, GPU/CPU delegate fallback, video frame detection,
+ * and 21 landmark canvas skeleton overlay rendering.
  */
 export class HandTracker {
   constructor() {
@@ -14,7 +15,7 @@ export class HandTracker {
   }
 
   /**
-   * Initializes MediaPipe HandLandmarker using CDN WASM binaries
+   * Initializes MediaPipe HandLandmarker with robust local WASM & CPU fallback
    */
   async initialize() {
     if (this.isInitialized || this.isInitializing) return;
@@ -22,29 +23,59 @@ export class HandTracker {
     this.isInitializing = true;
     this.initError = null;
 
-    try {
-      const vision = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
-      );
+    let vision = null;
 
+    // 1. Resolve Vision Tasks WASM binaries (Local host path first, then CDN fallback)
+    try {
+      vision = await FilesetResolver.forVisionTasks('/wasm');
+    } catch (localErr) {
+      console.warn('Local /wasm load failed, attempting CDN fallback:', localErr);
+      try {
+        vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
+        );
+      } catch (cdnErr) {
+        this.isInitializing = false;
+        this.initError = 'Failed to load MediaPipe WASM assets from both local domain and CDN.';
+        console.error('HandTracker WASM load error:', cdnErr);
+        throw new Error(this.initError);
+      }
+    }
+
+    const modelUrl = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+
+    // 2. Create HandLandmarker (Try GPU delegate first, fallback to CPU delegate)
+    try {
       this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
         baseOptions: {
-          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+          modelAssetPath: modelUrl,
           delegate: 'GPU'
         },
         runningMode: 'VIDEO',
         numHands: 1
       });
-
-      this.isInitialized = true;
-      this.isInitializing = false;
-      console.log('MediaPipe HandLandmarker loaded successfully.');
-    } catch (error) {
-      this.isInitializing = false;
-      this.initError = error.message || 'Failed to initialize hand detection model.';
-      console.error('HandTracker initialization error:', error);
-      throw error;
+    } catch (gpuError) {
+      console.warn('GPU delegate failed on this browser/device, retrying with CPU delegate:', gpuError);
+      try {
+        this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: modelUrl,
+            delegate: 'CPU'
+          },
+          runningMode: 'VIDEO',
+          numHands: 1
+        });
+      } catch (cpuError) {
+        this.isInitializing = false;
+        this.initError = 'Failed to initialize HandLandmarker with GPU and CPU delegates.';
+        console.error('HandTracker creation error:', cpuError);
+        throw new Error(this.initError);
+      }
     }
+
+    this.isInitialized = true;
+    this.isInitializing = false;
+    console.log('MediaPipe HandLandmarker successfully initialized.');
   }
 
   /**
@@ -69,7 +100,7 @@ export class HandTracker {
       }
       return null;
     } catch (err) {
-      console.warn('HandLandmarker detectForVideo error:', err);
+      console.warn('HandLandmarker detectForVideo warning:', err);
       return null;
     }
   }

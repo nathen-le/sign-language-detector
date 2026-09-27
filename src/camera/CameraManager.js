@@ -1,6 +1,6 @@
 /**
  * CameraManager handles WebRTC camera stream lifecycle, video element binding,
- * resolution fallbacks, mobile browser compatibility, and cleanup.
+ * constraint fallbacks for mobile browsers, HTTPS permission handling, and track cleanup.
  */
 export class CameraManager {
   constructor() {
@@ -10,16 +10,16 @@ export class CameraManager {
   }
 
   /**
-   * Initializes the webcam stream and binds it to the provided HTMLVideoElement
+   * Initializes webcam stream with robust fallback constraints and iOS/Android support
    * @param {HTMLVideoElement} videoElement
    * @returns {Promise<MediaStream>}
    */
   async startCamera(videoElement) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error('Webcam access is not supported by your browser or environment.');
+      throw new Error('Webcam access is not supported by your browser or environment. Please use HTTPS or a supported browser.');
     }
 
-    // Stop existing stream if running
+    // Stop existing stream before starting a new one
     this.stopCamera();
 
     const constraintsList = [
@@ -32,14 +32,14 @@ export class CameraManager {
         },
         audio: false
       },
-      // 2. Mobile fallback constraints
+      // 2. Standard user-facing camera
       {
         video: {
           facingMode: 'user'
         },
         audio: false
       },
-      // 3. Generic video constraint fallback
+      // 3. Generic video constraint
       {
         video: true,
         audio: false
@@ -51,7 +51,7 @@ export class CameraManager {
     for (const constraints of constraintsList) {
       try {
         this.stream = await navigator.mediaDevices.getUserMedia(constraints);
-        break; // Successfully obtained stream
+        break; // Stream acquired
       } catch (err) {
         lastError = err;
         console.warn('getUserMedia constraint failed, trying fallback:', constraints, err);
@@ -61,34 +61,37 @@ export class CameraManager {
     if (!this.stream) {
       this.isActive = false;
       if (lastError && (lastError.name === 'NotAllowedError' || lastError.name === 'PermissionDeniedError')) {
-        throw new Error('Camera access denied. Please allow camera permissions in your browser settings.');
+        throw new Error('Camera access denied. Please grant camera permissions in your browser address bar.');
       } else if (lastError && (lastError.name === 'NotFoundError' || lastError.name === 'DevicesNotFoundError')) {
-        throw new Error('No webcam found on your device.');
+        throw new Error('No webcam found on this device.');
+      } else if (lastError && (lastError.name === 'NotReadableError' || lastError.name === 'TrackStartError')) {
+        throw new Error('Webcam is already in use by another application.');
       } else {
-        throw new Error(lastError?.message || 'Could not start webcam feed.');
+        throw new Error(lastError?.message || 'Could not start webcam stream.');
       }
     }
 
     this.videoElement = videoElement;
 
     if (this.videoElement) {
-      this.videoElement.srcObject = this.stream;
+      // Set essential attributes for iOS Safari and mobile browser autoplay policies
       this.videoElement.setAttribute('playsinline', 'true');
+      this.videoElement.setAttribute('webkit-playsinline', 'true');
       this.videoElement.setAttribute('muted', 'true');
       this.videoElement.muted = true;
+      this.videoElement.srcObject = this.stream;
 
-      // Wait until video data has loaded to start playback safely
-      await new Promise((resolve, reject) => {
-        const onLoaded = () => {
-          this.videoElement.removeEventListener('loadeddata', onLoaded);
-          this.videoElement.play().then(resolve).catch(reject);
-        };
-        if (this.videoElement.readyState >= 2) {
-          this.videoElement.play().then(resolve).catch(reject);
-        } else {
-          this.videoElement.addEventListener('loadeddata', onLoaded);
-        }
-      });
+      try {
+        await this.videoElement.play();
+      } catch (playErr) {
+        console.warn('videoElement.play() threw error, retrying on loadedmetadata:', playErr);
+        await new Promise((resolve) => {
+          this.videoElement.onloadedmetadata = () => {
+            this.videoElement.play().then(resolve).catch(resolve);
+          };
+          setTimeout(resolve, 1000);
+        });
+      }
     }
 
     this.isActive = true;
@@ -118,7 +121,7 @@ export class CameraManager {
   }
 
   /**
-   * Checks whether the camera is actively streaming
+   * Checks whether camera stream is active
    * @returns {boolean}
    */
   isStreaming() {

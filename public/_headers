@@ -1,0 +1,7 @@
+/wasm/*.wasm
+  Content-Type: application/wasm
+  Access-Control-Allow-Origin: *
+
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
